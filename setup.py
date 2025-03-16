@@ -29,15 +29,28 @@ class StreamBuild(build_py):
             # Run make to build the C program
             subprocess.check_call(['make', 'clean'])
             
-            # Build with standard configuration
-            subprocess.check_call(['make'])
+            # Check if libnuma is available
+            numa_available = self._check_numa_available()
+            
+            if numa_available:
+                print("NUMA support detected, building with NUMA support")
+                build_cmd = ['make', 'USE_NUMA=1']
+            else:
+                print("NUMA support not detected, building without NUMA support")
+                build_cmd = ['make']
+                
+            # Build with appropriate configuration
+            subprocess.check_call(build_cmd)
             
             # Make sure the build directory exists
             os.makedirs(build_dir, exist_ok=True)
             
             # Copy the built executable to the build directory
-            shutil.copy('stream', build_dir)
-            print(f"Copied stream executable to {build_dir}")
+            if os.path.exists('stream'):
+                shutil.copy('stream', build_dir)
+                print(f"Copied stream executable to {build_dir}")
+            else:
+                print("WARNING: stream executable not found after build!")
             
             # Move back to the original directory
             os.chdir(cwd)
@@ -46,6 +59,43 @@ class StreamBuild(build_py):
             print(f"Error building STREAM benchmark: {e}")
             os.chdir(cwd)  # Ensure we return to the original directory
             raise
+    
+    def _check_numa_available(self):
+        """Check if libnuma is available on the system."""
+        try:
+            # Check if we can find the libnuma library
+            result = subprocess.run(
+                ["ldconfig", "-p"], 
+                capture_output=True, 
+                text=True
+            )
+            if "libnuma.so" in result.stdout:
+                return True
+                
+            # Alternative check for macOS and other systems
+            result = subprocess.run(
+                ["find", "/usr/lib", "/usr/local/lib", "-name", "libnuma*"], 
+                capture_output=True,
+                text=True
+            )
+            if result.stdout.strip():
+                return True
+                
+            # Check for the header file
+            if os.path.exists("/usr/include/numa.h") or os.path.exists("/usr/local/include/numa.h"):
+                return True
+                
+            return False
+        except Exception as e:
+            print(f"Error checking for NUMA support: {e}")
+            return False
+
+# Define packages explicitly, including c_src directory
+packages = find_packages(include=['pystream', 'pystream.*'])
+
+# Ensure pystream.c_src is included
+if 'pystream.c_src' not in packages:
+    packages.append('pystream.c_src')
 
 setup(
     name="pystream",
@@ -53,10 +103,11 @@ setup(
     description="Python wrapper for STREAM memory bandwidth benchmark",
     author="Your Name",
     author_email="your.email@example.com",
-    packages=find_packages(),
+    packages=packages,
     include_package_data=True,
     package_data={
         'pystream': ['c_src/*'],
+        'pystream.c_src': ['*'],
     },
     classifiers=[
         "Programming Language :: Python :: 3",
