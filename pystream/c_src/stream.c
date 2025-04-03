@@ -390,8 +390,8 @@ int main(int argc, char *argv[]) {
     int actual_iterations = runtime_mode ? total_iterations_completed : num_iterations;
     
     // Calculate total bytes moved: 
-    // (actual iterations) × num_arrays_accessed × array_size × sizeof(STREAM_TYPE)
-    ssize_t total_bytes_moved = (ssize_t)(actual_iterations) * 
+    // (actual iterations / num_threads) × num_arrays_accessed × array_size × sizeof(STREAM_TYPE)
+    ssize_t total_bytes_moved = (ssize_t)(actual_iterations) / num_threads * 
                               num_arrays_accessed * array_size * sizeof(STREAM_TYPE);
 
     // Report results only if not in silent mode
